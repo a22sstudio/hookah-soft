@@ -1,146 +1,103 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
-// ============================================
-// КОНСТАНТЫ
-// ============================================
-const AUTH_TOKEN_KEY = 'authToken';
-const USER_DATA_KEY = 'userData';
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+// Создаем "умный" экземпляр axios, который будет знать наш базовый URL
+const api = axios.create({
+    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
+});
 
-// ============================================
-// КОНТЕКСТ
-// ============================================
 const AuthContext = createContext(null);
+const AUTH_TOKEN_KEY = 'authToken';
 
-// ============================================
-// ПРОВАЙДЕР
-// ============================================
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [error, setError] = useState(null);
-    
+    const [isLoading, setIsLoading] = useState(true); // Начинаем с загрузки
     const navigate = useNavigate();
-    const location = useLocation();
-    
-    // Инициализация при загрузке
+
+    // Эта функция будет вызываться один раз при загрузке приложения
+    const verifyAuth = useCallback(async () => {
+        const token = localStorage.getItem(AUTH_TOKEN_KEY);
+        if (token) {
+            // Устанавливаем заголовок для следующего запроса
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            try {
+                // Пытаемся получить профиль пользователя по токену
+                const response = await api.get('/api/auth/profile');
+                setUser(response.data);
+            } catch (error) {
+                // Если токен невалидный, чистим все
+                console.error("Ошибка верификации токена:", error);
+                localStorage.removeItem(AUTH_TOKEN_KEY);
+                delete api.defaults.headers.common['Authorization'];
+                setUser(null);
+            }
+        }
+        setIsLoading(false); // Загрузка завершена
+    }, []);
+
     useEffect(() => {
-        const savedToken = localStorage.getItem(AUTH_TOKEN_KEY);
-        const savedUser = localStorage.getItem(USER_DATA_KEY);
-        
-        if (savedToken) {
-            setToken(savedToken);
-            setIsAuthenticated(true);
-            
-            if (savedUser) {
-                try {
-                    setUser(JSON.parse(savedUser));
-                } catch (e) {
-                    console.error('Ошибка парсинга данных пользователя');
-                }
-            }
-        }
-        
-        setIsLoading(false);
-    }, []);
-    
-    // Очистка данных
-    const clearAuthData = useCallback(() => {
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-        localStorage.removeItem(USER_DATA_KEY);
-        setToken(null);
-        setUser(null);
-        setIsAuthenticated(false);
-    }, []);
-    
-    // LOGIN
-    const login = useCallback(async (pin) => {
-        setIsLoading(true);
-        setError(null);
-        
+        verifyAuth();
+    }, [verifyAuth]);
+
+    // Функция входа
+    const login = async (pin) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pin }),
-            });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Ошибка авторизации');
-            }
-            
-            // Сохраняем
-            localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-            localStorage.setItem(USER_DATA_KEY, JSON.stringify(data.user));
-            
-            setToken(data.token);
-            setUser(data.user);
-            setIsAuthenticated(true);
-            
-            // Редирект
-            const from = location.state?.from || '/dashboard';
-            navigate(from, { replace: true });
-            
+            const response = await api.post('/api/auth/login', { pin });
+            const { token, user } = response.data;
+
+            localStorage.setItem(AUTH_TOKEN_KEY, token);
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            setUser(user);
+
+            navigate('/dashboard'); // Перенаправляем в дашборд после успешного входа
             return { success: true };
-            
-        } catch (err) {
-            setError(err.message);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
+        } catch (error) {
+            console.error("Ошибка входа:", error.response?.data?.message || error.message);
+            // Возвращаем ошибку, чтобы показать ее на странице входа
+            return { success: false, error: error.response?.data?.message || 'Неверный PIN-код' };
         }
-    }, [navigate, location.state]);
-    
-    // LOGOUT
-    const logout = useCallback(() => {
-        clearAuthData();
-        navigate('/login', { replace: true });
-    }, [clearAuthData, navigate]);
+    };
+
+    // Функция выхода
+    const logout = () => {
+        setUser(null);
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        delete api.defaults.headers.common['Authorization'];
+        navigate('/login');
+    };
     
     // Проверка роли
-    const hasRole = useCallback((role) => {
+    const hasRole = (role) => {
         if (!user) return false;
         if (Array.isArray(role)) return role.includes(user.role);
         return user.role === role;
-    }, [user]);
-    
-    // Заголовок авторизации
-    const getAuthHeader = useCallback(() => {
-        return token ? { 'Authorization': `Bearer ${token}` } : {};
-    }, [token]);
-    
+    };
+
+
+    // Передаем все нужные данные и функции в контекст
+    const value = {
+        user,
+        isLoading,
+        isAuthenticated: !!user, // Пользователь аутентифицирован, если есть объект user
+        login,
+        logout,
+        hasRole,
+    };
+
+    // Не показываем приложение, пока идет проверка токена
     return (
-        <AuthContext.Provider value={{
-            user,
-            token,
-            isLoading,
-            isAuthenticated,
-            error,
-            login,
-            logout,
-            hasRole,
-            getAuthHeader,
-            clearError: () => setError(null),
-        }}>
-            {children}
+        <AuthContext.Provider value={value}>
+            {!isLoading && children}
         </AuthContext.Provider>
     );
-}
+};
 
-// ============================================
-// ХУК
-// ============================================
-export function useAuth() {
+// Хук для удобного использования контекста
+export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
         throw new Error('useAuth должен использоваться внутри AuthProvider');
     }
     return context;
-}
-
-export default AuthContext;
+};
