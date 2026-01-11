@@ -2,38 +2,39 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// Создаем "умный" экземпляр axios, который будет знать наш базовый URL
-const api = axios.create({
+// ЭКСПОРТИРУЕМ настроенный экземпляр axios, чтобы его могли использовать другие части приложения
+export const api = axios.create({
     baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
 });
 
 const AuthContext = createContext(null);
 const AUTH_TOKEN_KEY = 'authToken';
+const USER_DATA_KEY = 'userData'; // Ключ для хранения данных пользователя
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [isLoading, setIsLoading] = useState(true); // Начинаем с загрузки
+    const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
 
-    // Эта функция будет вызываться один раз при загрузке приложения
-    const verifyAuth = useCallback(async () => {
+    // Эта функция теперь просто восстанавливает сессию из localStorage
+    const verifyAuth = useCallback(() => {
         const token = localStorage.getItem(AUTH_TOKEN_KEY);
-        if (token) {
-            // Устанавливаем заголовок для следующего запроса
+        const savedUser = localStorage.getItem(USER_DATA_KEY);
+
+        if (token && savedUser) {
+            // Устанавливаем заголовок авторизации для всех будущих запросов через 'api'
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             try {
-                // Пытаемся получить профиль пользователя по токену
-                const response = await api.get('/api/auth/profile');
-                setUser(response.data);
+                // Восстанавливаем пользователя из сохраненных данных
+                setUser(JSON.parse(savedUser));
             } catch (error) {
-                // Если токен невалидный, чистим все
-                console.error("Ошибка верификации токена:", error);
+                console.error("Не удалось восстановить сессию пользователя:", error);
+                // Если данные повреждены, чистим всё
                 localStorage.removeItem(AUTH_TOKEN_KEY);
-                delete api.defaults.headers.common['Authorization'];
-                setUser(null);
+                localStorage.removeItem(USER_DATA_KEY);
             }
         }
-        setIsLoading(false); // Загрузка завершена
+        setIsLoading(false);
     }, []);
 
     useEffect(() => {
@@ -46,15 +47,17 @@ export const AuthProvider = ({ children }) => {
             const response = await api.post('/api/auth/login', { pin });
             const { token, user } = response.data;
 
+            // Сохраняем и токен, и пользователя
             localStorage.setItem(AUTH_TOKEN_KEY, token);
+            localStorage.setItem(USER_DATA_KEY, JSON.stringify(user));
+
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             setUser(user);
 
-            navigate('/dashboard'); // Перенаправляем в дашборд после успешного входа
+            navigate('/dashboard');
             return { success: true };
         } catch (error) {
             console.error("Ошибка входа:", error.response?.data?.message || error.message);
-            // Возвращаем ошибку, чтобы показать ее на странице входа
             return { success: false, error: error.response?.data?.message || 'Неверный PIN-код' };
         }
     };
@@ -62,12 +65,14 @@ export const AuthProvider = ({ children }) => {
     // Функция выхода
     const logout = () => {
         setUser(null);
+        // Чистим и токен, и пользователя
         localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(USER_DATA_KEY);
         delete api.defaults.headers.common['Authorization'];
         navigate('/login');
     };
     
-    // Проверка роли
+    // Проверка роли (без изменений)
     const hasRole = (role) => {
         if (!user) return false;
         if (Array.isArray(role)) return role.includes(user.role);
@@ -79,13 +84,12 @@ export const AuthProvider = ({ children }) => {
     const value = {
         user,
         isLoading,
-        isAuthenticated: !!user, // Пользователь аутентифицирован, если есть объект user
+        isAuthenticated: !!user,
         login,
         logout,
         hasRole,
     };
 
-    // Не показываем приложение, пока идет проверка токена
     return (
         <AuthContext.Provider value={value}>
             {!isLoading && children}
@@ -93,7 +97,7 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-// Хук для удобного использования контекста
+// Хук для удобного использования контекста (без изменений)
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {

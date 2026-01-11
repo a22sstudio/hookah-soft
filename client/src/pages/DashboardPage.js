@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Box,
     Grid,
@@ -9,11 +9,6 @@ import {
     Skeleton,
     Alert,
     Chip,
-    Divider,
-    List,
-    ListItem,
-    ListItemIcon,
-    ListItemText,
     LinearProgress,
     IconButton,
     Tooltip,
@@ -30,14 +25,15 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SmokingRoomsIcon from '@mui/icons-material/SmokingRooms';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+
+// ИЗМЕНЕНИЕ №1: Импортируем 'api' из нашего контекста
+import { api } from '../context/AuthContext';
 
 function DashboardPage() {
     const theme = useTheme();
 
     // ============================================
-    // Состояния
+    // Состояния (без изменений)
     // ============================================
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -46,19 +42,16 @@ function DashboardPage() {
     // ============================================
     // Загрузка данных
     // ============================================
-    const fetchSummary = async () => {
+    // ИЗМЕНЕНИЕ №2: Оборачиваем в useCallback и используем 'api'
+    const fetchSummary = useCallback(async () => {
         try {
             setLoading(true);
             setError('');
 
-            const response = await fetch('http://localhost:3001/api/dashboard/summary');
+            // Используем наш настроенный 'api'. Он уже знает URL и токен.
+            const response = await api.get('/api/dashboard/summary');
 
-            if (!response.ok) {
-                throw new Error('Ошибка загрузки данных');
-            }
-
-            const data = await response.json();
-            setSummary(data);
+            setSummary(response.data);
 
         } catch (err) {
             console.error('Ошибка загрузки сводки:', err);
@@ -66,14 +59,14 @@ function DashboardPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []); // Зависимостей нет, т.к. 'api' стабилен
 
     useEffect(() => {
         fetchSummary();
-    }, []);
+    }, [fetchSummary]);
 
     // ============================================
-    // Форматирование
+    // Форматирование (без изменений)
     // ============================================
     const formatCurrency = (value) => {
         const num = parseFloat(value) || 0;
@@ -90,7 +83,7 @@ function DashboardPage() {
     };
 
     // ============================================
-    // Скелетон загрузки
+    // Скелетон загрузки (без изменений)
     // ============================================
     const renderSkeleton = (height = 200) => (
         <Card sx={{ height: '100%' }}>
@@ -103,11 +96,10 @@ function DashboardPage() {
         </Card>
     );
 
+    // ВЕСЬ ОСТАЛЬНОЙ КОД КОМПОНЕНТА ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ
+    // ... просто скопируй его как есть
     return (
         <Box>
-            {/* ============================================ */}
-            {/* ЗАГОЛОВОК СТРАНИЦЫ                          */}
-            {/* ============================================ */}
             <Box sx={{ mb: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="h4" fontWeight={700}>
@@ -139,7 +131,6 @@ function DashboardPage() {
                 </Typography>
             </Box>
 
-            {/* Ошибка */}
             {error && (
                 <Alert 
                     severity="error" 
@@ -157,18 +148,9 @@ function DashboardPage() {
                 </Alert>
             )}
 
-            {/* ============================================ */}
-            {/* АСИММЕТРИЧНАЯ СЕТКА                         */}
-            {/* ============================================ */}
             <Grid container spacing={3}>
-                
-                {/* ======================================== */}
-                {/* ЛЕВАЯ КОЛОНКА (Основная) — 8 колонок    */}
-                {/* ======================================== */}
                 <Grid item xs={12} md={8}>
                     <Grid container spacing={3}>
-                        
-                        {/* ----- Карточка: Общая стоимость склада ----- */}
                         <Grid item xs={12} sm={6}>
                             {loading ? renderSkeleton(180) : (
                                 <Card 
@@ -180,7 +162,6 @@ function DashboardPage() {
                                 >
                                     <CardContent>
                                         <Stack spacing={2}>
-                                            {/* Заголовок */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                 <Typography variant="subtitle2" color="text.secondary" fontWeight={500}>
                                                     Общая стоимость склада
@@ -199,13 +180,9 @@ function DashboardPage() {
                                                     <AccountBalanceWalletIcon sx={{ color: 'primary.main' }} />
                                                 </Box>
                                             </Box>
-
-                                            {/* Значение */}
                                             <Typography variant="h3" fontWeight={700} sx={{ color: 'primary.main' }}>
                                                 {formatCurrency(summary?.totalStockValue)}
                                             </Typography>
-
-                                            {/* Дополнительная информация */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                 <Chip
                                                     icon={<TrendingUpIcon />}
@@ -221,7 +198,6 @@ function DashboardPage() {
                             )}
                         </Grid>
 
-                        {/* ----- Карточка: Позиций на складе ----- */}
                         <Grid item xs={12} sm={6}>
                             {loading ? renderSkeleton(180) : (
                                 <Card 
@@ -233,7 +209,6 @@ function DashboardPage() {
                                 >
                                     <CardContent>
                                         <Stack spacing={2}>
-                                            {/* Заголовок */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                 <Typography variant="subtitle2" color="text.secondary" fontWeight={500}>
                                                     Позиций на складе
@@ -253,12 +228,9 @@ function DashboardPage() {
                                                 </Box>
                                             </Box>
 
-                                            {/* Значение */}
                                             <Typography variant="h3" fontWeight={700} sx={{ color: 'success.main' }}>
                                                 {formatNumber(summary?.totalPositions)}
                                             </Typography>
-
-                                            {/* Дополнительная информация */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                 <Typography variant="body2" color="text.secondary">
                                                     уникальных табаков
@@ -270,7 +242,6 @@ function DashboardPage() {
                             )}
                         </Grid>
 
-                        {/* ----- Карточка: Быстрая статистика ----- */}
                         <Grid item xs={12}>
                             {loading ? renderSkeleton(250) : (
                                 <Card>
@@ -280,12 +251,10 @@ function DashboardPage() {
                                         </Typography>
                                         
                                         <Grid container spacing={3}>
-                                            {/* Статистика 1 */}
                                             <Grid item xs={12} sm={4}>
                                                 <Box 
                                                     sx={{ 
-                                                        p: 2, 
-                                                        borderRadius: 2, 
+                                                        p: 2, borderRadius: 2, 
                                                         bgcolor: alpha(theme.palette.info.main, 0.08),
                                                         border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
                                                     }}
@@ -302,12 +271,10 @@ function DashboardPage() {
                                                 </Box>
                                             </Grid>
 
-                                            {/* Статистика 2 */}
                                             <Grid item xs={12} sm={4}>
                                                 <Box 
                                                     sx={{ 
-                                                        p: 2, 
-                                                        borderRadius: 2, 
+                                                        p: 2, borderRadius: 2, 
                                                         bgcolor: alpha(theme.palette.secondary.main, 0.08),
                                                         border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
                                                     }}
@@ -324,12 +291,10 @@ function DashboardPage() {
                                                 </Box>
                                             </Grid>
 
-                                            {/* Статистика 3 */}
                                             <Grid item xs={12} sm={4}>
                                                 <Box 
                                                     sx={{ 
-                                                        p: 2, 
-                                                        borderRadius: 2, 
+                                                        p: 2, borderRadius: 2, 
                                                         bgcolor: alpha(theme.palette.warning.main, 0.08),
                                                         border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
                                                     }}
@@ -350,17 +315,11 @@ function DashboardPage() {
                                 </Card>
                             )}
                         </Grid>
-
                     </Grid>
                 </Grid>
 
-                {/* ======================================== */}
-                {/* ПРАВАЯ КОЛОНКА (Сайдбар) — 4 колонки    */}
-                {/* ======================================== */}
                 <Grid item xs={12} md={4}>
                     <Stack spacing={3}>
-                        
-                        {/* ----- Карточка: Требуют закупки ----- */}
                         {loading ? renderSkeleton(280) : (
                             <Card 
                                 sx={{ 
@@ -374,75 +333,44 @@ function DashboardPage() {
                             >
                                 <CardContent>
                                     <Stack spacing={2}>
-                                        {/* Заголовок */}
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                             <Typography variant="subtitle2" color="text.secondary" fontWeight={500}>
                                                 Требуют закупки
                                             </Typography>
                                             <Box
                                                 sx={{
-                                                    width: 40,
-                                                    height: 40,
-                                                    borderRadius: 2,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
+                                                    width: 40, height: 40, borderRadius: 2,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                     bgcolor: summary?.lowStockItemsCount > 0 
                                                         ? alpha(theme.palette.warning.main, 0.15)
                                                         : alpha(theme.palette.success.main, 0.15),
                                                 }}
                                             >
                                                 <WarningAmberIcon 
-                                                    sx={{ 
-                                                        color: summary?.lowStockItemsCount > 0 
-                                                            ? 'warning.main' 
-                                                            : 'success.main' 
-                                                    }} 
+                                                    sx={{ color: summary?.lowStockItemsCount > 0 ? 'warning.main' : 'success.main' }} 
                                                 />
                                             </Box>
                                         </Box>
 
-                                        {/* Значение */}
                                         <Typography 
-                                            variant="h3" 
-                                            fontWeight={700} 
-                                            sx={{ 
-                                                color: summary?.lowStockItemsCount > 0 
-                                                    ? 'warning.main' 
-                                                    : 'success.main' 
-                                            }}
+                                            variant="h3" fontWeight={700} 
+                                            sx={{ color: summary?.lowStockItemsCount > 0 ? 'warning.main' : 'success.main' }}
                                         >
                                             {formatNumber(summary?.lowStockItemsCount)}
                                         </Typography>
 
-                                        {/* Статус */}
                                         <Box>
                                             {summary?.lowStockItemsCount > 0 ? (
-                                                <Alert 
-                                                    severity="warning" 
-                                                    variant="outlined"
-                                                    sx={{ 
-                                                        py: 0.5,
-                                                        bgcolor: 'transparent',
-                                                    }}
-                                                >
+                                                <Alert severity="warning" variant="outlined" sx={{ py: 0.5, bgcolor: 'transparent' }}>
                                                     Необходимо пополнить запасы
                                                 </Alert>
                                             ) : (
-                                                <Alert 
-                                                    severity="success" 
-                                                    variant="outlined"
-                                                    sx={{ 
-                                                        py: 0.5,
-                                                        bgcolor: 'transparent',
-                                                    }}
-                                                >
+                                                <Alert severity="success" variant="outlined" sx={{ py: 0.5, bgcolor: 'transparent' }}>
                                                     Все запасы в норме
                                                 </Alert>
                                             )}
                                         </Box>
 
-                                        {/* Прогресс бар */}
                                         {summary?.totalPositions > 0 && (
                                             <Box>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
@@ -457,13 +385,10 @@ function DashboardPage() {
                                                     variant="determinate" 
                                                     value={((summary?.totalPositions - summary?.lowStockItemsCount) / summary?.totalPositions) * 100}
                                                     sx={{
-                                                        height: 8,
-                                                        borderRadius: 4,
+                                                        height: 8, borderRadius: 4,
                                                         bgcolor: alpha(theme.palette.warning.main, 0.1),
                                                         '& .MuiLinearProgress-bar': {
-                                                            bgcolor: summary?.lowStockItemsCount > 0 
-                                                                ? 'warning.main' 
-                                                                : 'success.main',
+                                                            bgcolor: summary?.lowStockItemsCount > 0 ? 'warning.main' : 'success.main',
                                                         },
                                                     }}
                                                 />
@@ -474,7 +399,6 @@ function DashboardPage() {
                             </Card>
                         )}
 
-                        {/* ----- Карточка: Закончились ----- */}
                         {loading ? renderSkeleton(150) : (
                             <Card>
                                 <CardContent>
@@ -502,7 +426,6 @@ function DashboardPage() {
                             </Card>
                         )}
 
-                        {/* ----- Карточка: Последнее обновление ----- */}
                         <Card sx={{ bgcolor: 'transparent' }}>
                             <CardContent sx={{ py: 2 }}>
                                 <Typography variant="caption" color="text.secondary">
@@ -521,7 +444,6 @@ function DashboardPage() {
 
                     </Stack>
                 </Grid>
-
             </Grid>
         </Box>
     );
