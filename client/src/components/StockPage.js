@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Container,
     Grid,
@@ -60,7 +60,15 @@ import ErrorIcon from '@mui/icons-material/Error';
 // Компоненты
 import RestockModal from './RestockModal';
 
+// API и Auth Context
+import { api, useAuth } from '../context/AuthContext';
+
 function StockPage() {
+    // ============================================
+    // Получаем данные пользователя из контекста
+    // ============================================
+    const { user } = useAuth();
+
     // ============================================
     // Состояния для склада
     // ============================================
@@ -83,7 +91,7 @@ function StockPage() {
     // Состояния для интерактивного конструктора забивки
     const [selectedTobaccos, setSelectedTobaccos] = useState([]);
     const [mixGrams, setMixGrams] = useState({});
-    const [creatingSession, setCreatingSession] = useState(false); // НОВОЕ: загрузка создания
+    const [creatingSession, setCreatingSession] = useState(false);
 
     // Состояние модального окна прихода
     const [restockModalOpen, setRestockModalOpen] = useState(false);
@@ -96,45 +104,44 @@ function StockPage() {
     const [inventoryError, setInventoryError] = useState('');
 
     // ============================================
-    // НОВОЕ: Состояния для Snackbar уведомлений
+    // Состояния для Snackbar уведомлений
     // ============================================
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
-        severity: 'success', // 'success' | 'error' | 'warning' | 'info'
+        severity: 'success',
     });
 
     // Функция показа Snackbar
-    const showSnackbar = (message, severity = 'success') => {
+    const showSnackbar = useCallback((message, severity = 'success') => {
         setSnackbar({ open: true, message, severity });
-    };
+    }, []);
 
     // Функция закрытия Snackbar
-    const handleCloseSnackbar = (event, reason) => {
+    const handleCloseSnackbar = useCallback((event, reason) => {
         if (reason === 'clickaway') return;
         setSnackbar((prev) => ({ ...prev, open: false }));
-    };
+    }, []);
 
     // ============================================
     // Загрузка данных
     // ============================================
-    const fetchTobaccos = async () => {
+    const fetchTobaccos = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:3001/api/tobaccos');
-            const data = await response.json();
-            setTobaccos(data);
+            const response = await api.get('/api/tobaccos');
+            setTobaccos(response.data);
         } catch (error) {
             console.error('Ошибка загрузки:', error);
             showSnackbar('Ошибка загрузки данных', 'error');
         } finally {
             setLoading(false);
         }
-    };
+    }, [showSnackbar]);
 
     useEffect(() => {
         fetchTobaccos();
-    }, []);
+    }, [fetchTobaccos]);
 
     // ============================================
     // Вспомогательные функции для крепости
@@ -206,7 +213,7 @@ function StockPage() {
         });
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         setFormError('');
         setFormSuccess('');
@@ -226,27 +233,17 @@ function StockPage() {
         };
 
         try {
-            const response = await fetch('http://localhost:3001/api/tobaccos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(tobaccoData),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setFormSuccess(`Табак "${formData.brand} - ${formData.name}" добавлен!`);
-                resetForm();
-                fetchTobaccos();
-                setTimeout(() => setFormSuccess(''), 3000);
-            } else {
-                setFormError(data.error || 'Ошибка при добавлении');
-            }
+            await api.post('/api/tobaccos', tobaccoData);
+            setFormSuccess(`Табак "${formData.brand} - ${formData.name}" добавлен!`);
+            resetForm();
+            fetchTobaccos();
+            setTimeout(() => setFormSuccess(''), 3000);
         } catch (error) {
             console.error('Ошибка при добавлении табака:', error);
-            setFormError('Ошибка соединения с сервером');
+            const errorMessage = error.response?.data?.error || 'Ошибка соединения с сервером';
+            setFormError(errorMessage);
         }
-    };
+    }, [formData, fetchTobaccos]);
 
     // ============================================
     // Обработчики корректировки остатков
@@ -265,7 +262,7 @@ function StockPage() {
         setInventoryError('');
     };
 
-    const handleSaveInventory = async () => {
+    const handleSaveInventory = useCallback(async () => {
         if (!selectedTobaccoForEdit) return;
 
         const parsedWeight = parseFloat(newWeight);
@@ -279,37 +276,28 @@ function StockPage() {
         setInventoryError('');
 
         try {
-            const response = await fetch(
-                `http://localhost:3001/api/tobaccos/${selectedTobaccoForEdit.id}/inventory`,
-                {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ newWeight: parsedWeight }),
-                }
+            const response = await api.patch(
+                `/api/tobaccos/${selectedTobaccoForEdit.id}/inventory`,
+                { newWeight: parsedWeight }
             );
 
-            const data = await response.json();
-
-            if (response.ok) {
-                setTobaccos((prev) =>
-                    prev.map((t) =>
-                        t.id === selectedTobaccoForEdit.id
-                            ? { ...t, current_weight: parsedWeight }
-                            : t
-                    )
-                );
-                handleCloseInventoryDialog();
-                showSnackbar(data.message || 'Остаток обновлён', 'success');
-            } else {
-                setInventoryError(data.error || 'Ошибка при сохранении');
-            }
+            setTobaccos((prev) =>
+                prev.map((t) =>
+                    t.id === selectedTobaccoForEdit.id
+                        ? { ...t, current_weight: parsedWeight }
+                        : t
+                )
+            );
+            handleCloseInventoryDialog();
+            showSnackbar(response.data.message || 'Остаток обновлён', 'success');
         } catch (error) {
             console.error('Ошибка при корректировке:', error);
-            setInventoryError('Ошибка соединения с сервером');
+            const errorMessage = error.response?.data?.error || 'Ошибка соединения с сервером';
+            setInventoryError(errorMessage);
         } finally {
             setInventoryLoading(false);
         }
-    };
+    }, [selectedTobaccoForEdit, newWeight, showSnackbar]);
 
     // ============================================
     // Обработчики конструктора забивки
@@ -388,9 +376,9 @@ function StockPage() {
     }, [selectedTobaccos, mixGrams]);
 
     // ============================================
-    // ОБНОВЛЕНО: Создание забивки с отправкой на сервер
+    // Создание забивки с отправкой на сервер
     // ============================================
-    const handleCreateMix = async () => {
+    const handleCreateMix = useCallback(async () => {
         if (!isMixValid) return;
 
         setCreatingSession(true);
@@ -398,7 +386,7 @@ function StockPage() {
         try {
             // Формируем данные для отправки
             const sessionData = {
-                userId: 1, // TODO: Заменить на реального пользователя из контекста/auth
+                userId: user?.id || 1, // Используем реальный ID пользователя из контекста
                 mix: selectedTobaccos.map((tobacco) => ({
                     id: tobacco.id,
                     grams: parseFloat(mixGrams[tobacco.id]),
@@ -408,41 +396,31 @@ function StockPage() {
             console.log('Отправка данных сессии:', sessionData);
 
             // Отправляем запрос на создание сессии
-            const response = await fetch('http://localhost:3001/api/sessions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(sessionData),
-            });
+            const response = await api.post('/api/sessions', sessionData);
+            const data = response.data;
 
-            const data = await response.json();
+            // Успех!
+            console.log('Сессия создана:', data);
 
-            if (response.status === 201 && data.success) {
-                // Успех!
-                console.log('Сессия создана:', data);
+            // Очищаем конструктор
+            handleClearMix();
 
-                // Очищаем конструктор
-                handleClearMix();
+            // Обновляем список табаков (остатки уменьшились)
+            await fetchTobaccos();
 
-                // Обновляем список табаков (остатки уменьшились)
-                await fetchTobaccos();
-
-                // Показываем уведомление об успехе
-                showSnackbar(
-                    `Забивка создана! Себестоимость: ${data.session.totalCost.toFixed(2)} ₽`,
-                    'success'
-                );
-            } else {
-                // Ошибка от сервера
-                console.error('Ошибка создания сессии:', data);
-                showSnackbar(data.error || 'Ошибка при создании забивки', 'error');
-            }
+            // Показываем уведомление об успехе
+            showSnackbar(
+                `Забивка создана! Себестоимость: ${data.session.totalCost.toFixed(2)} ₽`,
+                'success'
+            );
         } catch (error) {
             console.error('Ошибка при отправке запроса:', error);
-            showSnackbar('Ошибка соединения с сервером', 'error');
+            const errorMessage = error.response?.data?.error || 'Ошибка соединения с сервером';
+            showSnackbar(errorMessage, 'error');
         } finally {
             setCreatingSession(false);
         }
-    };
+    }, [isMixValid, user, selectedTobaccos, mixGrams, fetchTobaccos, showSnackbar]);
 
     // ============================================
     // Другие вспомогательные функции

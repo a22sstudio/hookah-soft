@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Container,
     Card,
@@ -42,7 +42,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import UndoIcon from '@mui/icons-material/Undo';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+
+// API
+import { api } from '../context/AuthContext';
 
 function HistoryPage() {
     // ============================================
@@ -73,21 +75,15 @@ function HistoryPage() {
     // ============================================
     // Загрузка данных
     // ============================================
-    const fetchSessions = async () => {
+    const fetchSessions = useCallback(async () => {
         try {
             setLoading(true);
             setError('');
 
             const offset = (page - 1) * limit;
-            const response = await fetch(
-                `http://localhost:3001/api/sessions?limit=${limit}&offset=${offset}`
-            );
+            const response = await api.get(`/api/sessions?limit=${limit}&offset=${offset}`);
+            const data = response.data;
 
-            if (!response.ok) {
-                throw new Error('Ошибка загрузки данных');
-            }
-
-            const data = await response.json();
             setSessions(data.sessions || []);
             setTotal(data.pagination?.total || data.total || 0);
 
@@ -97,80 +93,69 @@ function HistoryPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page]);
 
     useEffect(() => {
         fetchSessions();
-    }, [page]);
+    }, [fetchSessions]);
 
     // ============================================
     // Обработчики раскрытия карточек
     // ============================================
-    const toggleCardExpand = (sessionId) => {
+    const toggleCardExpand = useCallback((sessionId) => {
         setExpandedCards(prev => ({
             ...prev,
             [sessionId]: !prev[sessionId]
         }));
-    };
+    }, []);
 
     // ============================================
     // Обработчики удаления
     // ============================================
-    const handleOpenDeleteDialog = (session) => {
+    const handleOpenDeleteDialog = useCallback((session) => {
         setSessionToDelete(session);
         setDeleteDialogOpen(true);
-    };
+    }, []);
 
-    const handleCloseDeleteDialog = () => {
+    const handleCloseDeleteDialog = useCallback(() => {
         setDeleteDialogOpen(false);
         setSessionToDelete(null);
-    };
+    }, []);
 
-    const handleConfirmDelete = async () => {
+    const handleConfirmDelete = useCallback(async () => {
         if (!sessionToDelete) return;
 
         setDeleting(true);
 
         try {
-            const response = await fetch(
-                `http://localhost:3001/api/sessions/${sessionToDelete.id}`,
-                { method: 'DELETE' }
-            );
+            const response = await api.delete(`/api/sessions/${sessionToDelete.id}`);
+            const data = response.data;
 
-            const data = await response.json();
+            handleCloseDeleteDialog();
+            await fetchSessions();
 
-            if (response.ok && data.success) {
-                handleCloseDeleteDialog();
-                await fetchSessions();
-
-                setSnackbar({
-                    open: true,
-                    message: `Забивка #${sessionToDelete.id} удалена. Возвращено ${data.totalGramsRestored || getTotalGrams(sessionToDelete)} гр табака`,
-                    severity: 'success',
-                });
-            } else {
-                setSnackbar({
-                    open: true,
-                    message: data.error || 'Ошибка при удалении',
-                    severity: 'error',
-                });
-            }
-        } catch (err) {
-            console.error('Ошибка при удалении:', err);
             setSnackbar({
                 open: true,
-                message: 'Ошибка соединения с сервером',
+                message: `Забивка #${sessionToDelete.id} удалена. Возвращено ${data.totalGramsRestored || getTotalGrams(sessionToDelete)} гр табака`,
+                severity: 'success',
+            });
+        } catch (err) {
+            console.error('Ошибка при удалении:', err);
+            const errorMessage = err.response?.data?.error || 'Ошибка соединения с сервером';
+            setSnackbar({
+                open: true,
+                message: errorMessage,
                 severity: 'error',
             });
         } finally {
             setDeleting(false);
         }
-    };
+    }, [sessionToDelete, fetchSessions, handleCloseDeleteDialog]);
 
-    const handleCloseSnackbar = (event, reason) => {
+    const handleCloseSnackbar = useCallback((event, reason) => {
         if (reason === 'clickaway') return;
         setSnackbar((prev) => ({ ...prev, open: false }));
-    };
+    }, []);
 
     // ============================================
     // Вспомогательные функции
