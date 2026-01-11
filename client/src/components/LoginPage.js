@@ -16,7 +16,6 @@ import {
 // Иконки
 import SmokingRoomsIcon from '@mui/icons-material/SmokingRooms';
 import BackspaceIcon from '@mui/icons-material/Backspace';
-import LockIcon from '@mui/icons-material/Lock';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 
 // Контекст авторизации
@@ -31,13 +30,16 @@ const KEYPAD_NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'b
 function LoginPage() {
     const theme = useTheme();
     const navigate = useNavigate();
-    const { login, isAuthenticated, isLoading, error, clearError } = useAuth();
+    // ИЗМЕНЕНИЕ №1: Получаем из контекста только то, что нам нужно.
+    const { login, isAuthenticated } = useAuth();
     
     // Состояния
     const [pin, setPin] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [shake, setShake] = useState(false);
     const [success, setSuccess] = useState(false);
+    // ИЗМЕНЕНИЕ №2: Создаем локальное состояние для ошибки.
+    const [loginError, setLoginError] = useState(null); 
     
     // Реф для автофокуса
     const containerRef = useRef(null);
@@ -70,14 +72,15 @@ function LoginPage() {
         if (pin.length === PIN_LENGTH && !isSubmitting) {
             handleSubmit();
         }
-    }, [pin]);
+    }, [pin, isSubmitting]); // убрали handleSubmit из зависимостей для стабильности
     
     // Очистка ошибки при изменении PIN
     useEffect(() => {
-        if (error && pin.length > 0) {
-            clearError();
+        // ИЗМЕНЕНИЕ №3: Работаем с локальной ошибкой.
+        if (loginError) {
+            setLoginError(null);
         }
-    }, [pin, error, clearError]);
+    }, [pin]); // Зависимость только от pin
     
     // Обработчики
     const handleNumberClick = (num) => {
@@ -96,14 +99,16 @@ function LoginPage() {
         if (pin.length !== PIN_LENGTH || isSubmitting) return;
         
         setIsSubmitting(true);
-        clearError();
+        setLoginError(null); // Сбрасываем локальную ошибку
         
         const result = await login(pin);
         
         if (result.success) {
             setSuccess(true);
+            // Редирект произойдет автоматически внутри AuthContext
         } else {
-            // Анимация тряски при ошибке
+            // Устанавливаем локальную ошибку из ответа функции login
+            setLoginError(result.error || 'Произошла неизвестная ошибка');
             setShake(true);
             setTimeout(() => setShake(false), 500);
             setPin('');
@@ -138,15 +143,16 @@ function LoginPage() {
                                 width: 20,
                                 height: 20,
                                 borderRadius: '50%',
+                                // Используем локальную ошибку для стилизации
                                 border: `2px solid ${
-                                    error 
+                                    loginError 
                                         ? theme.palette.error.main 
                                         : success 
                                             ? theme.palette.success.main
                                             : alpha(theme.palette.primary.main, 0.5)
                                 }`,
                                 bgcolor: index < pin.length 
-                                    ? error 
+                                    ? loginError 
                                         ? 'error.main'
                                         : success
                                             ? 'success.main'
@@ -155,7 +161,7 @@ function LoginPage() {
                                 transition: 'all 0.2s ease',
                                 boxShadow: index < pin.length 
                                     ? `0 0 10px ${alpha(
-                                        error ? theme.palette.error.main : theme.palette.primary.main, 
+                                        loginError ? theme.palette.error.main : theme.palette.primary.main, 
                                         0.5
                                     )}`
                                     : 'none',
@@ -167,7 +173,7 @@ function LoginPage() {
         );
     };
     
-    // Рендер кнопки клавиатуры
+    // Рендер кнопки клавиатуры (без изменений)
     const renderKeypadButton = (item, index) => {
         if (item === '') {
             return <Box key={index} sx={{ width: 72, height: 72 }} />;
@@ -180,18 +186,10 @@ function LoginPage() {
                     onClick={handleBackspace}
                     disabled={isSubmitting || pin.length === 0}
                     sx={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: '50%',
-                        color: 'text.secondary',
+                        width: 72, height: 72, borderRadius: '50%', color: 'text.secondary',
                         transition: 'all 0.2s ease',
-                        '&:hover': {
-                            bgcolor: alpha(theme.palette.error.main, 0.1),
-                            color: 'error.main',
-                        },
-                        '&:active': {
-                            transform: 'scale(0.95)',
-                        },
+                        '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1), color: 'error.main' },
+                        '&:active': { transform: 'scale(0.95)' },
                     }}
                 >
                     <BackspaceIcon />
@@ -205,28 +203,13 @@ function LoginPage() {
                 onClick={() => handleNumberClick(item)}
                 disabled={isSubmitting || pin.length >= PIN_LENGTH}
                 sx={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: '50%',
-                    fontSize: '1.5rem',
-                    fontWeight: 600,
-                    color: 'text.primary',
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                    width: 72, height: 72, borderRadius: '50%', fontSize: '1.5rem', fontWeight: 600,
+                    color: 'text.primary', bgcolor: alpha(theme.palette.primary.main, 0.05),
                     border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                     transition: 'all 0.2s ease',
-                    '&:hover': {
-                        bgcolor: alpha(theme.palette.primary.main, 0.15),
-                        borderColor: alpha(theme.palette.primary.main, 0.3),
-                        transform: 'scale(1.05)',
-                    },
-                    '&:active': {
-                        transform: 'scale(0.95)',
-                        bgcolor: alpha(theme.palette.primary.main, 0.25),
-                    },
-                    '&.Mui-disabled': {
-                        color: 'text.disabled',
-                        bgcolor: 'transparent',
-                    },
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.15), borderColor: alpha(theme.palette.primary.main, 0.3), transform: 'scale(1.05)' },
+                    '&:active': { transform: 'scale(0.95)', bgcolor: alpha(theme.palette.primary.main, 0.25) },
+                    '&.Mui-disabled': { color: 'text.disabled', bgcolor: 'transparent' },
                 }}
             >
                 {item}
@@ -238,12 +221,8 @@ function LoginPage() {
         <Box
             ref={containerRef}
             sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 bgcolor: 'background.default',
-                // Анимированный фон
                 backgroundImage: `
                     radial-gradient(ellipse at top left, ${alpha(theme.palette.primary.main, 0.15)} 0%, transparent 50%),
                     radial-gradient(ellipse at bottom right, ${alpha(theme.palette.secondary.main, 0.1)} 0%, transparent 50%)
@@ -255,29 +234,20 @@ function LoginPage() {
                 <Paper
                     elevation={0}
                     sx={{
-                        width: '100%',
-                        maxWidth: 400,
-                        p: 4,
-                        borderRadius: 4,
+                        width: '100%', maxWidth: 400, p: 4, borderRadius: 4,
                         bgcolor: alpha(theme.palette.background.paper, 0.8),
                         backdropFilter: 'blur(20px)',
                         border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
                         boxShadow: `0 20px 60px ${alpha('#000', 0.3)}`,
                     }}
                 >
-                    {/* Логотип */}
                     <Box sx={{ textAlign: 'center', mb: 4 }}>
                         <Box
                             sx={{
-                                width: 80,
-                                height: 80,
-                                borderRadius: 4,
+                                width: 80, height: 80, borderRadius: 4,
                                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                mx: 'auto',
-                                mb: 2,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                mx: 'auto', mb: 2,
                                 boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
                             }}
                         >
@@ -288,9 +258,7 @@ function LoginPage() {
                             fontWeight={700}
                             sx={{
                                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                                backgroundClip: 'text',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                             }}
                         >
                             Hookah Manager
@@ -300,7 +268,6 @@ function LoginPage() {
                         </Typography>
                     </Box>
                     
-                    {/* Иконка замка */}
                     <Box sx={{ textAlign: 'center', mb: 2 }}>
                         {isSubmitting ? (
                             <CircularProgress size={32} sx={{ color: 'primary.main' }} />
@@ -308,15 +275,15 @@ function LoginPage() {
                             <FingerprintIcon 
                                 sx={{ 
                                     fontSize: 32, 
-                                    color: error ? 'error.main' : success ? 'success.main' : 'text.secondary',
+                                    color: loginError ? 'error.main' : success ? 'success.main' : 'text.secondary',
                                     transition: 'color 0.3s',
                                 }} 
                             />
                         )}
                     </Box>
                     
-                    {/* Ошибка */}
-                    {error && (
+                    {/* Используем локальную ошибку для отображения */}
+                    {loginError && (
                         <Fade in={true}>
                             <Alert 
                                 severity="error" 
@@ -326,37 +293,25 @@ function LoginPage() {
                                     border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
                                 }}
                             >
-                                {error}
+                                {loginError}
                             </Alert>
                         </Fade>
                     )}
                     
-                    {/* PIN точки */}
                     {renderPinDots()}
                     
-                    {/* Цифровая клавиатура */}
                     <Box
                         sx={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(3, 1fr)',
-                            gap: 1.5,
-                            justifyItems: 'center',
-                            maxWidth: 280,
-                            mx: 'auto',
+                            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                            gap: 1.5, justifyItems: 'center', maxWidth: 280, mx: 'auto',
                         }}
                     >
                         {KEYPAD_NUMBERS.map((item, index) => renderKeypadButton(item, index))}
                     </Box>
                     
-                    {/* Подсказка */}
                     <Typography 
-                        variant="caption" 
-                        color="text.disabled" 
-                        sx={{ 
-                            display: 'block', 
-                            textAlign: 'center', 
-                            mt: 4,
-                        }}
+                        variant="caption" color="text.disabled" 
+                        sx={{ display: 'block', textAlign: 'center', mt: 4 }}
                     >
                         Для тестирования используйте ПИН: 1234
                     </Typography>
