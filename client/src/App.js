@@ -1,3 +1,8 @@
+// ============================================
+// ФАЙЛ: App.js
+// Корневой компонент приложения
+// ============================================
+
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 
@@ -23,6 +28,7 @@ import ProfilePage from './components/ProfilePage';
 function App() {
     return (
         <ThemeProvider theme={theme}>
+            {/* CssBaseline нормализует стили браузера */}
             <CssBaseline />
             <BrowserRouter>
                 <AuthProvider>
@@ -31,6 +37,10 @@ function App() {
                         <Route path="/login" element={<LoginPage />} />
                         
                         {/* ===== ЗАЩИЩЁННЫЕ МАРШРУТЫ ===== */}
+                        {/* 
+                            Layout оборачивает все защищённые страницы
+                            и отвечает за отображение Sidebar + основного контента
+                        */}
                         <Route
                             path="/"
                             element={
@@ -64,6 +74,5 @@ function App() {
         </ThemeProvider>
     );
 }
-
 
 export default App;
