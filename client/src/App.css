@@ -1,0 +1,100 @@
+/* ============================================
+   Базовые стили и анимированный фон
+   ============================================ */
+
+/* Сброс и базовые настройки */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Основной фон */
+body {
+    background: #0D1117;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* Анимированный градиентный фон */
+body::before {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 200vw;
+    height: 200vh;
+    background: radial-gradient(
+        circle at center,
+        #00AEEF 0%,
+        rgba(0, 174, 239, 0) 25%
+    );
+    transform: translate(-50%, -50%);
+    animation: spin 20s linear infinite;
+    opacity: 0.15;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* Вращение фона */
+@keyframes spin {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+/* Контейнер приложения */
+#root {
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+}
+
+/* Дополнительный слой свечения (опционально) */
+body::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    right: -50%;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(
+        circle at center,
+        rgba(255, 152, 0, 0.1) 0%,
+        transparent 50%
+    );
+    animation: float 15s ease-in-out infinite alternate;
+    z-index: -1;
+    pointer-events: none;
+}
+
+@keyframes float {
+    from {
+        transform: translate(0, 0);
+    }
+    to {
+        transform: translate(-20%, 20%);
+    }
+}
+
+/* Скроллбар для темной темы */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
