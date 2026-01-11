@@ -13,7 +13,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Страницы
 import LoginPage from './components/LoginPage';
-import DashboardPage from './components/DashboardPage';
+import DashboardPage from './pages/DashboardPage';
 import StockPage from './components/StockPage';
 import HistoryPage from './components/HistoryPage';
 import UsersPage from './components/UsersPage';
